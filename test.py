@@ -22,6 +22,7 @@ from scipy.spatial.distance import pdist
 import matplotlib
 import pickle
 from tqdm import tqdm
+from collections import OrderedDict
 
 from random import sample
 from utils import create_log_file, log_and_print, plot_tsne, embedding_concat, mahalanobis_torch
@@ -64,15 +65,14 @@ def evaluation(encoder, pred, dataloader, device, shot, _class_=None):
     encoder.eval()
     pred.eval()
 
-    src_outputs = OrderedDict([('layer1', []), ('layer2', []), ('layer3', [])])
-    tgt_outputs = OrderedDict([('layer1', []), ('layer2', []), ('layer3', [])])
-
     image_auc_list = []
     pixel_auc_list = []
-    
     time_list = []
 
     for i in tqdm(range(10)):
+
+        src_outputs = OrderedDict([('layer1', []), ('layer2', []), ('layer3', [])])
+        tgt_outputs = OrderedDict([('layer1', []), ('layer2', []), ('layer3', [])])
 
         # support img
         support_img = fixed_fewshot_list[i]
@@ -85,14 +85,14 @@ def evaluation(encoder, pred, dataloader, device, shot, _class_=None):
             support_img = support_img.to(device)
             inputs = encoder(support_img)
             feat, z_support, x = pred(inputs)
-            # outputs = decoder(btl)
+            
         feat_s = torch.mean(feat, dim=0, keepdim=True)
-        src_outputs['layer1'].append(encoder.enc1_output)
-        src_outputs['layer2'].append(encoder.enc2_output)
-        src_outputs['layer3'].append(encoder.enc3_output)
+        src_outputs['layer1'].append(encoder.enc1_output.detach())
+        src_outputs['layer2'].append(encoder.enc2_output.detach())
+        src_outputs['layer3'].append(encoder.enc3_output.detach())
 
         
-        for k, v in train_outputs.items():
+        for k, v in src_outputs.items():
             src_outputs[k] = torch.cat(v, 0)
         
         # Embedding concat
@@ -135,11 +135,11 @@ def evaluation(encoder, pred, dataloader, device, shot, _class_=None):
                 
                 img_num += 1
         
-        for k, v in test_outputs.items():
+        for k, v in tgt_outputs.items():
             tgt_outputs[k] = torch.cat(v, 0)
 
         # Embedding concat
-        embedding_vectors = test_outputs['layer1']
+        embedding_vectors = tgt_outputs['layer1']
         for layer_name in ['layer2', 'layer3']:
             embedding_vectors = embedding_concat(embedding_vectors, tgt_outputs[layer_name], True)
         
@@ -172,7 +172,7 @@ def evaluation(encoder, pred, dataloader, device, shot, _class_=None):
         time_list.append(elapsed_time / img_num)
 
         # return score_map, query_imgs, gt_list, mask_list
-        scores = np.asarray(scores_list)
+        scores = np.asarray(score_map)
         # Normalization
         max_anomaly_score = scores.max()
         min_anomaly_score = scores.min()
@@ -185,7 +185,7 @@ def evaluation(encoder, pred, dataloader, device, shot, _class_=None):
         image_auc_list.append(img_roc_auc)
 
         # calculate per-pixel level ROCAUC
-        gt_mask = np.asarray(gt_mask_list)
+        gt_mask = np.asarray(mask_list)
         gt_mask = (gt_mask > 0.5).astype(np.int_)
         per_pixel_rocauc = roc_auc_score(gt_mask.flatten(), scores.flatten())
         pixel_auc_list.append(per_pixel_rocauc)
@@ -195,7 +195,7 @@ def evaluation(encoder, pred, dataloader, device, shot, _class_=None):
     mean_img_auc = np.mean(image_auc_list, axis = 0)
     mean_pixel_auc = np.mean(pixel_auc_list, axis = 0)
 
-    return mean_img_auc, mean_img_auc, sum(time_list) / len(time_list)
+    return mean_img_auc, mean_pixel_auc, sum(time_list) / len(time_list)
 
 def test(_class_):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'

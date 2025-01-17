@@ -243,13 +243,12 @@ class ResNet(nn.Module):
         x = self.maxpool(x)
 
         feature_a = self.cbam1(self.layer1(x))
-        self.enc1_output = feature_a
+        self.enc1_output = feature_a.detach()
         feature_b = self.cbam2(self.layer2(feature_a))
-        self.enc2_output = feature_b
+        self.enc2_output = feature_b.detach()
         feature_c = self.cbam3(self.layer3(feature_b))
-        self.enc3_output = feature_c
+        self.enc3_output = feature_c.detach()
         # feature_d = self.layer4(feature_c)
-
 
         return [feature_a, feature_b, feature_c]
 

@@ -20,6 +20,7 @@ from test import evaluation, visualization, test
 from torch.nn import functional as F
 from loss import center_loss_func, update_center, loss_fucntion, loss_concat
 from utils import create_log_file, log_and_print, plot_tsne, embedding_concat, mahalanobis_torch
+from collections import OrderedDict
 
 import time
 from tqdm import tqdm
@@ -93,10 +94,10 @@ def train(_class_, item_list, data_name):
     # compare scores 
     auc_old, auc_pre = 0.000, 0.000
 
-    # time
-    start_time = time.perf_counter()
-
     for epoch in range(epochs):
+
+        # time
+        start_time = time.perf_counter()
 
         encoder.train()        
         pred.train()
@@ -177,6 +178,11 @@ if __name__ == '__main__':
                      'transistor', 'metal_nut', 'screw','toothbrush', 'zipper', 'tile', 'wood']
     if args.data_type == 'mpdd':
         item_list = ['bracket_black', 'bracket_brown', 'bracket_white', 'connector', 'metal_plate', 'tubes']
-
+    
+    # sbatch用
+    if os.getcwd() == '/k_home/g518nabe/rd_base':
+        os.chdir('./RD_RegAD')
+        print(os.getcwd())
+        
     for i in range(len(item_list)):
         train(item_list[i], item_list, args.data_type)
