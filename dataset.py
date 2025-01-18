@@ -17,6 +17,7 @@ CLASS_NAMES = [
     'toothbrush', 'transistor', 'wood', 'zipper'
 ]
 
+# CLASS_NAMES  = ['bracket_black', 'bracket_brown', 'bracket_white', 'connector', 'metal_plate', 'tubes']
 def get_data_transforms(size, isize):
     mean_train = [0.485, 0.456, 0.406]
     std_train = [0.229, 0.224, 0.225]
