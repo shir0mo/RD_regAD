@@ -488,7 +488,7 @@ class BN_layer(nn.Module):
         # x = torch.flatten(x, 1)
         # x = self.fc(x)
 
-        return output.contiguous(), feature_center, pred_class
+        return output, feature_center, pred_class
 
     def forward(self, x: Tensor) -> Tensor:
         return self._forward_impl(x)

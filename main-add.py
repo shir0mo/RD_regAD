@@ -21,6 +21,7 @@ from torch.nn import functional as F
 from loss import center_loss_func, update_center, loss_fucntion, loss_concat
 from utils import create_log_file, log_and_print, plot_tsne, embedding_concat, mahalanobis_torch
 from collections import OrderedDict
+from stn import stn_net
 
 import time
 from tqdm import tqdm
@@ -71,11 +72,11 @@ def train(_class_, item_list, data_name):
     # train dataframe
     train_df = make_train_data(_class_)
     # create log
-    log_path = create_log_file(_class_)
- 
+    #log_path = create_log_file(_class_)
+    log_path = "./test.txt"
     data_transform, gt_transform = get_data_transforms(image_size, image_size)
     test_path = '../' + data_name + '/'
-    ckp_path = '../checkpoints/' + 'res18_'+ log_path[13:-4] + '.pth'
+    ckp_path = '../checkpoints/' + 'res18_'+ _class_ + '.pth'
 
     # dataset
     train_dataset = ClassificationDataset(train_df)
@@ -85,11 +86,15 @@ def train(_class_, item_list, data_name):
     test_dataloader = torch.utils.data.DataLoader(test_data, batch_size=1, shuffle=False)
 
     encoder, pred = resnet18(num_class, pretrained=True)
-    encoder = encoder.to(device)
+
+    args.stn_mode = 'affine'
+    stn = stn_net(args)
+    stn = stn.to(device)
+    # encoder = encoder.to(device)
     pred = pred.to(device)
     # encoder.train()
 
-    optimizer = torch.optim.SGD(list(encoder.parameters())+list(pred.parameters()), lr=learning_rate, momentum=momentum)
+    optimizer = torch.optim.SGD(list(stn.parameters())+list(pred.parameters()), lr=learning_rate, momentum=momentum)
 
     # compare scores 
     auc_old, auc_pre = 0.000, 0.000
@@ -97,8 +102,6 @@ def train(_class_, item_list, data_name):
     for epoch in range(epochs):
 
         # time
-        start_time = time.perf_counter()
-
         encoder.train()        
         pred.train()
 
@@ -111,18 +114,25 @@ def train(_class_, item_list, data_name):
         # visualize
         ip1_loader = []
         idx_loader = []
-
+        
         for img, label in tqdm(train_loader):
+            torch.cuda.synchronize()
+            start_time = time.perf_counter()
+            
             img = img.to(device)
             label = label.to(device, dtype=torch.int64)
-            inputs = encoder(img)
-            btl, z, x = pred(inputs)
+            inputs = stn(img)
+            z, x = pred(inputs)
 
             # 損失計算
             ce_loss = F.cross_entropy(x, label)
             center_loss = center_lambda * 0.5 * center_loss_func(pred, z, label)
             loss = ce_loss + center_loss
 
+            torch.cuda.synchronize()
+            end_time = time.perf_counter()
+            print(end_time - start_time)
+            
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -130,12 +140,11 @@ def train(_class_, item_list, data_name):
             celoss_list.append(ce_loss.item())
             centerloss_list.append(center_loss.item())
             loss_list.append(loss.item())
-
-            ip1_loader.append(z)
-            idx_loader.append((label))
+            #ip1_loader.append(z)
         
-        end_time = time.perf_counter()
-        elapsed_time = end_time - start_time
+            #idx_loader.append((label))
+
+        #elapsed_time = end_time - start_time
 
         feat = torch.cat(ip1_loader, 0).cpu()
         labels_list = torch.cat(idx_loader, 0).cpu()
@@ -184,5 +193,6 @@ if __name__ == '__main__':
         os.chdir('./RD_RegAD')
         print(os.getcwd())
         
-    for i in range(6):
-        train(item_list[i], item_list, args.data_type)
+    # for i in range(6,12):
+    #     train(item_list[i], item_list, args.data_type)
+    train('hazelnut', item_list, 'mvtec')
